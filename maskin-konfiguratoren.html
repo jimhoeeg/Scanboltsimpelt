@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Maskin-Konfiguratoren: Fra Basis til Blærerøv | Scanbolt</title>
+
+  <!-- Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            steel: '#1e293b',
+            'steel-800': '#1e293b',
+            'steel-900': '#0f172a',
+            'safety-yellow': '#eab308',
+            'safety-orange': '#f97316',
+          },
+          fontFamily: {
+            display: ['"Oswald"', 'system-ui', 'sans-serif'],
+            body: ['Inter', 'system-ui', 'sans-serif'],
+          },
+        },
+      },
+    };
+  </script>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <style>
+    /* Base look & feel of the widget */
+    .sb-widget * { font-family: 'Inter', system-ui, sans-serif; }
+    .sb-widget h1, .sb-widget h2, .sb-widget h3, .sb-widget .font-display {
+      font-family: 'Oswald', system-ui, sans-serif;
+      letter-spacing: 0.5px;
+    }
+
+    /* Subtle rugged diagonal hazard texture for the header */
+    .sb-hazard {
+      background-image: repeating-linear-gradient(
+        45deg,
+        rgba(234, 179, 8, 0.08) 0px,
+        rgba(234, 179, 8, 0.08) 12px,
+        transparent 12px,
+        transparent 24px
+      );
+    }
+
+    /* Progress bar animation */
+    .sb-progress-fill { transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1); }
+
+    /* Step transition */
+    .sb-step { animation: sbFade 0.45s ease both; }
+    @keyframes sbFade {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Selectable card interactions */
+    .sb-card {
+      transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, background-color 0.18s ease;
+    }
+    .sb-card:hover { transform: translateY(-4px); }
+    .sb-card.sb-selected {
+      border-color: #f97316;
+      box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.25), 0 12px 30px -8px rgba(15, 23, 42, 0.35);
+    }
+    .sb-card.sb-selected .sb-check { opacity: 1; transform: scale(1); }
+    .sb-check { opacity: 0; transform: scale(0.5); transition: all 0.2s ease; }
+
+    /* Checkbox row */
+    .sb-checkrow { transition: all 0.18s ease; }
+    .sb-checkrow.sb-selected {
+      border-color: #f97316;
+      background-color: #fff7ed;
+      box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.2);
+    }
+    .sb-checkrow.sb-selected .sb-box {
+      background-color: #f97316;
+      border-color: #f97316;
+    }
+    .sb-checkrow.sb-selected .sb-box svg { opacity: 1; }
+    .sb-box svg { opacity: 0; transition: opacity 0.15s ease; }
+
+    /* Result card accent bars */
+    .sb-result-card { transition: transform 0.2s ease, box-shadow 0.2s ease; }
+    .sb-result-card:hover { transform: translateY(-4px); box-shadow: 0 20px 40px -12px rgba(15,23,42,0.25); }
+
+    /* Pulse for badass tier */
+    .sb-glow { animation: sbGlow 2.6s ease-in-out infinite; }
+    @keyframes sbGlow {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.0); }
+      50% { box-shadow: 0 0 34px -6px rgba(249, 115, 22, 0.55); }
+    }
+
+    /* Button press */
+    .sb-btn { transition: all 0.15s ease; }
+    .sb-btn:active { transform: translateY(1px) scale(0.99); }
+
+    /* Success burst */
+    .sb-success { animation: sbPop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+    @keyframes sbPop {
+      from { opacity: 0; transform: scale(0.85); }
+      to   { opacity: 1; transform: scale(1); }
+    }
+
+    .sb-scrollbar::-webkit-scrollbar { width: 8px; }
+    .sb-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 8px; }
+  </style>
+</head>
+
+<body class="bg-slate-200">
+
+  <!-- =========================================================
+       SCANBOLT MASKIN-KONFIGURATOR WIDGET  (drop-in)
+       Single element: <div id="scanbolt-configurator"> ... </div>
+       ========================================================= -->
+  <div class="min-h-screen flex items-center justify-center p-3 sm:p-6">
+
+    <div id="scanbolt-configurator"
+         class="sb-widget w-full max-w-5xl bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-200">
+
+      <!-- ============ HEADER ============ -->
+      <header class="relative bg-slate-800 sb-hazard px-6 sm:px-10 py-6 sm:py-8 text-white overflow-hidden">
+        <div class="absolute top-0 left-0 h-1.5 w-full bg-gradient-to-r from-safety-yellow via-safety-orange to-safety-yellow"></div>
+        <div class="flex items-center justify-between gap-4">
+          <div>
+            <div class="flex items-center gap-2 mb-2">
+              <span class="inline-flex items-center gap-1.5 bg-safety-yellow text-slate-900 text-[11px] font-bold uppercase tracking-widest px-2.5 py-1 rounded">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M22 6.92l-1.41-1.41-2.85 3.21C15.68 6.4 12.83 5 9.61 5 6.72 5 4.07 6.16 2.1 8.05l1.43 1.43C5.13 7.94 7.25 7 9.61 7c2.31 0 4.41.94 5.92 2.45l-2.02 2.27C12.44 10.68 11.08 10 9.61 10c-1.34 0-2.57.51-3.49 1.36l1.43 1.43c.55-.51 1.28-.79 2.06-.79.83 0 1.58.32 2.14.85L9.61 16H15v-5.39l1.32-1.49L20.9 12l1.1-1.1z"/></svg>
+                Scanbolt
+              </span>
+              <span class="text-slate-400 text-xs uppercase tracking-widest hidden sm:inline">Grej der arbejder</span>
+            </div>
+            <h1 class="text-2xl sm:text-4xl font-bold uppercase leading-none">
+              Maskin-Konfiguratoren
+            </h1>
+            <p class="text-safety-yellow font-semibold text-sm sm:text-lg mt-1 uppercase tracking-wide">
+              Fra Basis til Blærerøv
+            </p>
+          </div>
+          <div class="hidden md:flex flex-col items-center justify-center bg-slate-700/60 rounded-xl px-4 py-3 border border-slate-600">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-10 h-10 text-safety-orange" viewBox="0 0 24 24" fill="currentColor"><path d="M18 6.5A2.5 2.5 0 0 0 15.5 4h-2.79l-.32-1.11A1.5 1.5 0 0 0 10.95 2H8.5A1.5 1.5 0 0 0 7 3.5V9H4a2 2 0 0 0-2 2v6a3 3 0 0 0 3 3 3 3 0 0 0 6 0h2a3 3 0 0 0 6 0 3 3 0 0 0 3-3v-2.26a2 2 0 0 0-.53-1.36L18 9.5V6.5zM7 19.5A1.5 1.5 0 1 1 8.5 18 1.5 1.5 0 0 1 7 19.5zm11 0A1.5 1.5 0 1 1 19.5 18 1.5 1.5 0 0 1 18 19.5z"/></svg>
+            <span class="text-[10px] uppercase tracking-widest text-slate-300 mt-1">Skræddersyet</span>
+          </div>
+        </div>
+
+        <!-- Progress -->
+        <div id="sb-progress-wrap" class="mt-6">
+          <div class="flex items-center justify-between mb-2">
+            <span id="sb-step-label" class="text-xs font-bold uppercase tracking-widest text-slate-300">Trin 1 af 4</span>
+            <span id="sb-step-name" class="text-xs font-semibold uppercase tracking-wide text-safety-yellow">Vægtklasse</span>
+          </div>
+          <div class="w-full h-2.5 bg-slate-700 rounded-full overflow-hidden">
+            <div id="sb-progress" class="sb-progress-fill h-full rounded-full bg-gradient-to-r from-safety-yellow to-safety-orange" style="width:25%"></div>
+          </div>
+        </div>
+      </header>
+
+      <!-- ============ BODY ============ -->
+      <main id="sb-body" class="px-5 sm:px-10 py-7 sm:py-9 bg-slate-50 min-h-[420px]"></main>
+
+      <!-- ============ FOOTER NAV ============ -->
+      <footer id="sb-footer" class="px-5 sm:px-10 py-5 bg-white border-t border-slate-200 flex items-center justify-between gap-3">
+        <button id="sb-back"
+          class="sb-btn inline-flex items-center gap-2 px-5 py-3 rounded-lg font-semibold text-slate-600 border-2 border-slate-200 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+          Tilbage
+        </button>
+
+        <div class="hidden sm:flex items-center gap-1.5" id="sb-dots"></div>
+
+        <button id="sb-next"
+          class="sb-btn inline-flex items-center gap-2 px-6 py-3 rounded-lg font-bold text-slate-900 bg-safety-orange hover:bg-orange-500 shadow-lg shadow-orange-500/30 disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none">
+          Næste
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        </button>
+      </footer>
+    </div>
+  </div>
+
+  <script>
+  (function () {
+    'use strict';
+
+    /* =========================================================
+       STATE
+       ========================================================= */
+    const state = {
+      step: 1,
+      totalSteps: 4,
+      weight: null,      // 'mini' | 'mellem' | 'stor' | 'tung'
+      workType: null,    // 'gartner' | 'nedrivning' | 'kloak'
+      current: [],       // array of ids from step 3
+      submitted: false,
+    };
+
+    const stepNames = { 1: 'Vægtklasse', 2: 'Arbejdsopgave', 3: 'Nuværende setup', 4: 'Din konfiguration' };
+
+    /* =========================================================
+       OPTION DATA
+       ========================================================= */
+    const weightOptions = [
+      { id: 'mini',    title: 'Mini',   sub: '0,5 – 2 tons',  desc: 'Kompakt & smidig – haver og trange pladser', icon: iconMini() },
+      { id: 'mellem',  title: 'Mellem', sub: '2 – 6 tons',    desc: 'Alsidig arbejdshest til de fleste opgaver',   icon: iconMedium() },
+      { id: 'stor',    title: 'Stor',   sub: '6 – 12 tons',   desc: 'Kraft til større entrepriser',               icon: iconLarge() },
+      { id: 'tung',    title: 'Tung',   sub: 'Over 12 tons',  desc: 'Rå kraft til de tunge løft',                 icon: iconHeavy() },
+    ];
+
+    const workOptions = [
+      { id: 'gartner',    title: 'Anlægsgartner / Havedesign', sub: 'Landscaping', desc: 'Afretning, beplantning, sten & fliser', icon: iconGarden() },
+      { id: 'nedrivning', title: 'Nedrivning / Beton',         sub: 'Demolition',  desc: 'Nedbrydning, sortering & knusning',     icon: iconDemo() },
+      { id: 'kloak',      title: 'Kloak / Entreprenør',        sub: 'Excavation',  desc: 'Grave, rør, kloak & jordarbejde',       icon: iconDig() },
+    ];
+
+    const currentOptions = [
+      { id: 'quickcoupler', title: 'Standard Hurtigskift',        desc: 'Standard Quick Coupler',      icon: iconCoupler() },
+      { id: 'bucket',       title: 'Almindelig Graveskovl',       desc: 'Standard Digging Bucket',     icon: iconBucket() },
+      { id: 'hydraulics',   title: 'Hydraulik ført ud på armen',  desc: 'Auxiliary Hydraulics klar',   icon: iconHydraulic() },
+    ];
+
+    /* =========================================================
+       RECOMMENDATION MATRIX  (weight x workType)
+       Each entry: { must:[], nice:[], badass:[] }
+       Items: { name, note }
+       ========================================================= */
+    const M = {
+      mini: {
+        gartner: {
+          must:  [ item('Stærke Gummibælter & 300mm Kabelskovl', 'Skånsom mod fliser – går ikke i stå i den bløde jord') ],
+          nice:  [ item('Hydraulisk Planerskovl', 'Sparer 30% afretningstid ved klargøring af plæner') ],
+          badass:[ item('360° Hydraulisk Sorteregrab', 'Til sten, stubbe og rødder – roterer frit i alle vinkler') ],
+        },
+        nedrivning: {
+          must:  [ item('Forstærket Graveskovl med Jaws-tænder', 'Bider sig gennem beton og armering uden at bukke') ],
+          nice:  [ item('Hydraulisk Hurtigskift', 'Skift grej uden at forlade kabinen') ],
+          badass:[ item('Kompakt Nedbrydningshammer', 'Maksimal slagenergi tilpasset minimaskinens flow') ],
+        },
+        kloak: {
+          must:  [ item('Kabelskovl 300mm & Rendegraveskovl', 'Præcis rendegravning til rør og kabler') ],
+          nice:  [ item('Hydraulisk Tiltskovl', 'Afret grøftebund uden at flytte maskinen') ],
+          badass:[ item('Tiltrotator (fuld 360° + tilt)', 'Fingerspidsfornemmelse – arbejd i alle vinkler fra kabinen') ],
+        },
+      },
+      mellem: {
+        gartner: {
+          must:  [ item('Slidstærke Gummibælter & Planerskovl', 'Stabilt fundament til afretning og transport') ],
+          nice:  [ item('Hydraulisk Tiltskovl', 'Model terræn og skråninger på den halve tid') ],
+          badass:[ item('360° Sorteregrab til sten & stubbe', 'Løft, sortér og placér tunge emner med præcision') ],
+        },
+        nedrivning: {
+          must:  [ item('Forstærket Graveskovl med Jaws-tænder', 'HD-stål der tåler beton, armering og murbrokker') ],
+          nice:  [ item('Hydraulisk Hurtigskift', 'Skift grej uden at forlade kabinen') ],
+          badass:[ item('Heavy-Duty Nedbrydningshammer', 'Afleverer maksimal slagenergi til beton og klippe') ],
+        },
+        kloak: {
+          must:  [ item('Rendegraveskovl + Planérskovl 1200mm', 'Effektiv rendegravning og opfyld i ét setup') ],
+          nice:  [ item('Hydraulisk Hurtigskift', 'Skift mellem grave- og planérskovl på sekunder') ],
+          badass:[ item('Tiltrotator med greb', 'Læg rør præcist og grav i vinkler uden ompositionering') ],
+        },
+      },
+      stor: {
+        gartner: {
+          must:  [ item('HD Planérskovl & Slidstærke Bælter', 'Bevæg store jordmængder og afret store arealer') ],
+          nice:  [ item('Hydraulisk Tiltskovl (bred)', 'Præcis modellering af terræn i stor skala') ],
+          badass:[ item('360° Sorteregrab (HD)', 'Håndtér sten, stubbe og genbrugsmateriale ubesværet') ],
+        },
+        nedrivning: {
+          must:  [ item('Forstærket Graveskovl med Jaws-tænder', 'Kompromisløs styrke til tung nedbrydning') ],
+          nice:  [ item('Hydraulisk Hurtigskift', 'Skift grej uden at forlade kabinen') ],
+          badass:[ item('Heavy-Duty Nedbrydningshammer', 'Afleverer maksimal slagenergi til beton og fundamenter') ],
+        },
+        kloak: {
+          must:  [ item('Graveskovl 600mm & Rendegraveskovl', 'Robust setup til dyb kloak og hovedledninger') ],
+          nice:  [ item('Hydraulisk Hurtigskift', 'Effektivt skift mellem skovle på pladsen') ],
+          badass:[ item('Tiltrotator (HD) med greb', 'Fuld frihed – grav, tilt og placér uden at flytte maskinen') ],
+        },
+      },
+      tung: {
+        gartner: {
+          must:  [ item('HD Planérskovl (ekstra bred) & Bælter', 'Massiv kapacitet til store landskabsprojekter') ],
+          nice:  [ item('Hydraulisk Tiltskovl (HD)', 'Afret store flader med præcision og hastighed') ],
+          badass:[ item('360° Sorteregrab (Maxi)', 'Håndtér de tungeste sten, stubbe og materialer') ],
+        },
+        nedrivning: {
+          must:  [ item('HD Nedbrydningsskovl med Jaws-tænder', 'Bygget til brutal, vedvarende nedbrydning') ],
+          nice:  [ item('Hydraulisk Hurtigskift (HD)', 'Skift tungt grej hurtigt og sikkert') ],
+          badass:[ item('Maxi Nedbrydningshammer', 'Toppen af slagkraft – knuser fundamenter og klippe') ],
+        },
+        kloak: {
+          must:  [ item('HD Graveskovl 800mm & Rendegraveskovl', 'Til dybe udgravninger og store hovedledninger') ],
+          nice:  [ item('Hydraulisk Hurtigskift (HD)', 'Robust skift mellem tunge skovle') ],
+          badass:[ item('Tiltrotator (Maxi) med greb', 'Ultimativ kontrol i storskala-entrepriser') ],
+        },
+      },
+    };
+
+    function item(name, note) { return { name: name, note: note }; }
+
+    /* =========================================================
+       DOM REFS
+       ========================================================= */
+    const body = document.getElementById('sb-body');
+    const progress = document.getElementById('sb-progress');
+    const stepLabel = document.getElementById('sb-step-label');
+    const stepName = document.getElementById('sb-step-name');
+    const backBtn = document.getElementById('sb-back');
+    const nextBtn = document.getElementById('sb-next');
+    const footer = document.getElementById('sb-footer');
+    const dots = document.getElementById('sb-dots');
+
+    /* =========================================================
+       RENDER DISPATCH
+       ========================================================= */
+    function render() {
+      // progress bar
+      const pct = Math.round((state.step / state.totalSteps) * 100);
+      progress.style.width = pct + '%';
+      stepLabel.textContent = 'Trin ' + state.step + ' af ' + state.totalSteps;
+      stepName.textContent = stepNames[state.step];
+      renderDots();
+
+      if (state.step === 1) renderWeight();
+      else if (state.step === 2) renderWork();
+      else if (state.step === 3) renderCurrent();
+      else if (state.step === 4) renderResults();
+
+      updateNav();
+    }
+
+    function renderDots() {
+      dots.innerHTML = '';
+      for (let i = 1; i <= state.totalSteps; i++) {
+        const d = document.createElement('span');
+        d.className = 'h-2 rounded-full transition-all ' +
+          (i === state.step ? 'w-8 bg-safety-orange' : (i < state.step ? 'w-2 bg-safety-yellow' : 'w-2 bg-slate-300'));
+        dots.appendChild(d);
+      }
+    }
+
+    function stepHeading(title, sub) {
+      return '<div class="mb-6">' +
+        '<h2 class="text-2xl sm:text-3xl font-bold text-slate-800 uppercase">' + title + '</h2>' +
+        (sub ? '<p class="text-slate-500 mt-1">' + sub + '</p>' : '') +
+        '</div>';
+    }
+
+    /* =========================================================
+       STEP 1 — WEIGHT
+       ========================================================= */
+    function renderWeight() {
+      let html = '<div class="sb-step">';
+      html += stepHeading('Hvor stor er din maskine?', 'Vælg vægtklassen på din graver — det afgør hvilket grej der passer.');
+      html += '<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">';
+      weightOptions.forEach(function (o) {
+        const sel = state.weight === o.id ? 'sb-selected border-safety-orange' : 'border-slate-200';
+        html += '' +
+          '<button data-weight="' + o.id + '" class="sb-card ' + sel + ' relative text-left bg-white border-2 rounded-xl p-5 hover:shadow-xl focus:outline-none">' +
+            '<span class="sb-check absolute top-3 right-3 w-6 h-6 rounded-full bg-safety-orange text-white flex items-center justify-center">' + checkSvg() + '</span>' +
+            '<div class="w-14 h-14 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center mb-4">' + o.icon + '</div>' +
+            '<div class="text-xl font-bold text-slate-800 uppercase">' + o.title + '</div>' +
+            '<div class="inline-block mt-1 text-xs font-bold uppercase tracking-wide text-safety-orange bg-orange-50 px-2 py-0.5 rounded">' + o.sub + '</div>' +
+            '<p class="text-sm text-slate-500 mt-2 leading-snug">' + o.desc + '</p>' +
+          '</button>';
+      });
+      html += '</div></div>';
+      body.innerHTML = html;
+
+      body.querySelectorAll('[data-weight]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          state.weight = btn.getAttribute('data-weight');
+          render();
+        });
+      });
+    }
+
+    /* =========================================================
+       STEP 2 — WORK TYPE
+       ========================================================= */
+    function renderWork() {
+      let html = '<div class="sb-step">';
+      html += stepHeading('Hvad er din primære arbejdsopgave?', 'Vi tilpasser anbefalingerne til den type arbejde, du laver mest.');
+      html += '<div class="grid grid-cols-1 md:grid-cols-3 gap-4">';
+      workOptions.forEach(function (o) {
+        const sel = state.workType === o.id ? 'sb-selected border-safety-orange' : 'border-slate-200';
+        html += '' +
+          '<button data-work="' + o.id + '" class="sb-card ' + sel + ' relative text-left bg-white border-2 rounded-xl p-6 hover:shadow-xl focus:outline-none">' +
+            '<span class="sb-check absolute top-3 right-3 w-6 h-6 rounded-full bg-safety-orange text-white flex items-center justify-center">' + checkSvg() + '</span>' +
+            '<div class="w-16 h-16 rounded-lg bg-slate-800 text-safety-yellow flex items-center justify-center mb-4">' + o.icon + '</div>' +
+            '<div class="text-lg font-bold text-slate-800 uppercase leading-tight">' + o.title + '</div>' +
+            '<div class="text-xs uppercase tracking-widest text-slate-400 mt-1">' + o.sub + '</div>' +
+            '<p class="text-sm text-slate-500 mt-3 leading-snug">' + o.desc + '</p>' +
+          '</button>';
+      });
+      html += '</div></div>';
+      body.innerHTML = html;
+
+      body.querySelectorAll('[data-work]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          state.workType = btn.getAttribute('data-work');
+          render();
+        });
+      });
+    }
+
+    /* =========================================================
+       STEP 3 — CURRENT SETUP (multi-select)
+       ========================================================= */
+    function renderCurrent() {
+      let html = '<div class="sb-step">';
+      html += stepHeading('Hvad har du allerede på maskinen i dag?', 'Vælg alt hvad du allerede råder over — så undgår du at få det anbefalet igen.');
+      html += '<div class="space-y-3 max-w-2xl">';
+      currentOptions.forEach(function (o) {
+        const sel = state.current.indexOf(o.id) !== -1 ? 'sb-selected' : 'border-slate-200 bg-white';
+        html += '' +
+          '<button data-current="' + o.id + '" class="sb-checkrow ' + sel + ' w-full flex items-center gap-4 text-left border-2 rounded-xl p-4 hover:border-safety-orange focus:outline-none">' +
+            '<span class="sb-box shrink-0 w-6 h-6 rounded border-2 border-slate-300 flex items-center justify-center">' + checkSvg('text-white w-4 h-4') + '</span>' +
+            '<div class="w-11 h-11 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center shrink-0">' + o.icon + '</div>' +
+            '<div class="flex-1">' +
+              '<div class="font-bold text-slate-800">' + o.title + '</div>' +
+              '<div class="text-sm text-slate-500">' + o.desc + '</div>' +
+            '</div>' +
+          '</button>';
+      });
+      html += '</div>';
+      html += '<p class="text-xs text-slate-400 mt-5 flex items-center gap-2">' + infoSvg() + 'Du kan vælge flere — eller springe videre hvis intet passer.</p>';
+      html += '</div>';
+      body.innerHTML = html;
+
+      body.querySelectorAll('[data-current]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          const id = btn.getAttribute('data-current');
+          const idx = state.current.indexOf(id);
+          if (idx === -1) state.current.push(id); else state.current.splice(idx, 1);
+          render();
+        });
+      });
+    }
+
+    /* =========================================================
+       STEP 4 — RESULTS + LEAD FORM
+       ========================================================= */
+    function getRecommendations() {
+      const w = state.weight || 'mellem';
+      const t = state.workType || 'kloak';
+      // Deep clone so we can filter without mutating the matrix
+      const base = JSON.parse(JSON.stringify(M[w][t]));
+
+      // Adjust "must-haves" based on what they already own (Step 3)
+      const notes = [];
+      if (state.current.indexOf('quickcoupler') !== -1) {
+        notes.push('Du har allerede standard hurtigskift — spørg os om opgradering til hydraulisk skift.');
+      }
+      if (state.current.indexOf('bucket') !== -1) {
+        notes.push('Du har en standard graveskovl — vi fokuserer på specialskovle der udvider dine muligheder.');
+      }
+      if (state.current.indexOf('hydraulics') === -1) {
+        notes.push('Uden hydraulik på armen kræver flere Blærerøvs-tilføjelser en ekstra hydraulikudtag — det klarer vi.');
+      } else {
+        notes.push('Du har hydraulik ført ud på armen — du er klar til alt vores hydrauliske grej.');
+      }
+      return { rec: base, notes: notes, weightLabel: labelFor(weightOptions, w), workLabel: labelFor(workOptions, t) };
+    }
+
+    function labelFor(arr, id) { const o = arr.find(function (x) { return x.id === id; }); return o ? o.title : ''; }
+
+    function renderResults() {
+      const data = getRecommendations();
+      const rec = data.rec;
+
+      let html = '<div class="sb-step">';
+
+      // Summary banner
+      html += '' +
+        '<div class="bg-slate-800 sb-hazard rounded-xl p-5 sm:p-6 mb-6 text-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">' +
+          '<div>' +
+            '<div class="text-xs uppercase tracking-widest text-safety-yellow font-bold mb-1">Din personlige konfiguration</div>' +
+            '<h2 class="text-xl sm:text-2xl font-bold uppercase">Skræddersyet til din maskine</h2>' +
+            '<div class="flex flex-wrap gap-2 mt-3">' +
+              chip(data.weightLabel + ' maskine') +
+              chip(data.workLabel) +
+              (state.current.length ? chip(state.current.length + ' stk. grej registreret') : '') +
+            '</div>' +
+          '</div>' +
+          '<div class="shrink-0 bg-safety-yellow text-slate-900 rounded-lg px-4 py-3 text-center">' +
+            '<div class="text-2xl font-bold leading-none">3</div>' +
+            '<div class="text-[10px] uppercase tracking-widest font-bold mt-1">Niveauer</div>' +
+          '</div>' +
+        '</div>';
+
+      // Three columns
+      html += '<div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-3">';
+      html += resultColumn(
+        'Basis', 'Must-Haves', 'Det du SKAL have for at komme i gang',
+        rec.must, 'yellow', tierIconBasis());
+      html += resultColumn(
+        'Optimering', 'Nice-to-Haves', 'Grej der sparer dig tid og penge',
+        rec.nice, 'slate', tierIconNice());
+      html += resultColumn(
+        'Blærerøv', 'Badass Upgrades', 'De imponerende opgraderinger der skiller dig ud',
+        rec.badass, 'orange', tierIconBadass());
+      html += '</div>';
+
+      // Contextual notes from step 3
+      if (data.notes.length) {
+        html += '<div class="bg-white border border-slate-200 rounded-xl p-4 mb-7">' +
+          '<div class="text-xs font-bold uppercase tracking-widest text-slate-500 mb-2 flex items-center gap-2">' + infoSvg() + 'Baseret på dit nuværende setup</div>' +
+          '<ul class="space-y-1.5">';
+        data.notes.forEach(function (n) {
+          html += '<li class="text-sm text-slate-600 flex items-start gap-2"><span class="text-safety-orange mt-0.5">▸</span><span>' + n + '</span></li>';
+        });
+        html += '</ul></div>';
+      }
+
+      // ===== LEAD FORM =====
+      html += '' +
+        '<div class="bg-white border-2 border-slate-200 rounded-2xl overflow-hidden shadow-lg">' +
+          '<div class="bg-slate-800 px-5 sm:px-7 py-4 flex items-center gap-3">' +
+            '<div class="w-10 h-10 rounded-lg bg-safety-orange text-slate-900 flex items-center justify-center">' + envelopeSvg() + '</div>' +
+            '<div>' +
+              '<h3 class="text-white font-bold uppercase text-lg leading-tight">Hent dit skræddersyede tilbud</h3>' +
+              '<p class="text-slate-400 text-xs">Vi matcher listen med din præcise maskinmodel og sender priser.</p>' +
+            '</div>' +
+          '</div>' +
+          '<form id="sb-lead-form" class="p-5 sm:p-7 grid grid-cols-1 sm:grid-cols-2 gap-4" novalidate>' +
+            field('sb-model', 'Maskine mærke & model', 'text', 'F.eks. Kubota KX019-4', true, 'sm:col-span-2') +
+            field('sb-name', 'Navn', 'text', 'Dit fulde navn', true) +
+            field('sb-email', 'Email', 'email', 'dig@firma.dk', true) +
+            field('sb-phone', 'Telefon (valgfrit)', 'tel', '+45 00 00 00 00', false, 'sm:col-span-2') +
+            '<div class="sm:col-span-2 flex flex-col sm:flex-row sm:items-center gap-3 pt-1">' +
+              '<button type="submit" class="sb-btn flex-1 inline-flex items-center justify-center gap-2 bg-safety-orange hover:bg-orange-500 text-slate-900 font-bold uppercase tracking-wide px-6 py-4 rounded-lg shadow-lg shadow-orange-500/30 text-base">' +
+                envelopeSvg('w-5 h-5') + 'Hent mit skræddersyede tilbud' +
+              '</button>' +
+              '<span class="text-xs text-slate-400 flex items-center gap-1.5">' + lockSvg() + 'Ingen spam. Kun dit tilbud.</span>' +
+            '</div>' +
+          '</form>' +
+        '</div>';
+
+      html += '</div>';
+      body.innerHTML = html;
+
+      const form = document.getElementById('sb-lead-form');
+      form.addEventListener('submit', handleSubmit);
+    }
+
+    function chip(text) {
+      if (!text) return '';
+      return '<span class="inline-flex items-center gap-1.5 bg-slate-700/70 border border-slate-600 text-slate-100 text-xs font-semibold px-3 py-1 rounded-full">' +
+        '<span class="w-1.5 h-1.5 rounded-full bg-safety-yellow"></span>' + text + '</span>';
+    }
+
+    function resultColumn(tag, subtitle, desc, items, color, icon) {
+      const theme = {
+        yellow: { bar: 'bg-safety-yellow', badge: 'bg-yellow-50 text-yellow-700 border-yellow-200', dot: 'text-safety-yellow', ring: '' },
+        slate:  { bar: 'bg-slate-400',     badge: 'bg-slate-100 text-slate-600 border-slate-200',   dot: 'text-slate-400',    ring: '' },
+        orange: { bar: 'bg-safety-orange', badge: 'bg-orange-50 text-orange-700 border-orange-200', dot: 'text-safety-orange', ring: 'sb-glow border-safety-orange' },
+      }[color];
+
+      let h = '<div class="sb-result-card relative bg-white border-2 ' + (color === 'orange' ? 'border-orange-200 ' + theme.ring : 'border-slate-200') + ' rounded-xl overflow-hidden flex flex-col">';
+      h += '<div class="h-1.5 w-full ' + theme.bar + '"></div>';
+      h += '<div class="p-5 flex-1 flex flex-col">';
+      h += '<div class="flex items-center justify-between mb-3">' +
+             '<div class="w-11 h-11 rounded-lg bg-slate-800 flex items-center justify-center ' + theme.dot + '">' + icon + '</div>' +
+             '<span class="text-[10px] font-bold uppercase tracking-widest border px-2 py-1 rounded ' + theme.badge + '">' + subtitle + '</span>' +
+           '</div>';
+      h += '<h3 class="text-xl font-bold text-slate-800 uppercase">' + tag + '</h3>';
+      h += '<p class="text-xs text-slate-400 mb-4">' + desc + '</p>';
+      h += '<ul class="space-y-3 flex-1">';
+      items.forEach(function (it) {
+        h += '<li class="border-l-2 ' + (color === 'orange' ? 'border-safety-orange' : (color === 'yellow' ? 'border-safety-yellow' : 'border-slate-300')) + ' pl-3">' +
+               '<div class="font-semibold text-slate-800 text-sm leading-snug">' + it.name + '</div>' +
+               '<div class="text-xs text-slate-500 mt-0.5">' + it.note + '</div>' +
+             '</li>';
+      });
+      h += '</ul>';
+      if (color === 'orange') {
+        h += '<div class="mt-4 text-[10px] uppercase tracking-widest font-bold text-safety-orange flex items-center gap-1.5">' + starSvg() + 'Mest populære opgradering</div>';
+      }
+      h += '</div></div>';
+      return h;
+    }
+
+    function field(id, label, type, placeholder, required, extra) {
+      extra = extra || '';
+      return '<div class="' + extra + '">' +
+        '<label for="' + id + '" class="block text-xs font-bold uppercase tracking-wide text-slate-600 mb-1.5">' +
+          label + (required ? ' <span class="text-safety-orange">*</span>' : '') +
+        '</label>' +
+        '<input id="' + id + '" name="' + id + '" type="' + type + '" placeholder="' + placeholder + '"' + (required ? ' required' : '') +
+          ' class="w-full px-4 py-3 rounded-lg border-2 border-slate-200 bg-slate-50 focus:bg-white focus:border-safety-orange focus:outline-none focus:ring-2 focus:ring-orange-200 transition text-slate-800 placeholder-slate-400" />' +
+        '<p class="sb-err hidden text-xs text-red-500 mt-1"></p>' +
+      '</div>';
+    }
+
+    /* =========================================================
+       FORM SUBMIT
+       ========================================================= */
+    function handleSubmit(e) {
+      e.preventDefault();
+      const model = document.getElementById('sb-model');
+      const name = document.getElementById('sb-name');
+      const email = document.getElementById('sb-email');
+      const phone = document.getElementById('sb-phone');
+
+      let ok = true;
+      ok = validate(model, model.value.trim() !== '', 'Angiv venligst mærke og model') && ok;
+      ok = validate(name, name.value.trim() !== '', 'Angiv venligst dit navn') && ok;
+      const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value.trim());
+      ok = validate(email, emailOk, 'Angiv venligst en gyldig email') && ok;
+
+      if (!ok) return;
+
+      // Capture the lead payload (in a real deployment: POST to CRM/endpoint)
+      const lead = {
+        weight: state.weight,
+        workType: state.workType,
+        currentSetup: state.current.slice(),
+        model: model.value.trim(),
+        name: name.value.trim(),
+        email: email.value.trim(),
+        phone: phone.value.trim(),
+        recommendations: getRecommendations().rec,
+        timestamp: new Date().toISOString(),
+      };
+      // eslint-disable-next-line no-console
+      console.log('[Scanbolt Lead]', lead);
+
+      state.submitted = true;
+      showSuccess(model.value.trim(), name.value.trim());
+    }
+
+    function validate(input, condition, msg) {
+      const err = input.parentElement.querySelector('.sb-err');
+      if (!condition) {
+        input.classList.add('border-red-400', 'bg-red-50');
+        input.classList.remove('border-slate-200');
+        if (err) { err.textContent = msg; err.classList.remove('hidden'); }
+        return false;
+      }
+      input.classList.remove('border-red-400', 'bg-red-50');
+      input.classList.add('border-slate-200');
+      if (err) err.classList.add('hidden');
+      return true;
+    }
+
+    function showSuccess(model, name) {
+      footer.style.display = 'none';
+      progress.style.width = '100%';
+      stepLabel.textContent = 'Færdig';
+      stepName.textContent = 'Tilbud på vej';
+
+      body.innerHTML = '' +
+        '<div class="sb-success flex flex-col items-center justify-center text-center py-10 sm:py-16 px-4">' +
+          '<div class="relative mb-6">' +
+            '<div class="w-24 h-24 rounded-full bg-green-100 flex items-center justify-center">' +
+              '<div class="w-16 h-16 rounded-full bg-green-500 text-white flex items-center justify-center">' +
+                '<svg xmlns="http://www.w3.org/2000/svg" class="w-9 h-9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>' +
+              '</div>' +
+            '</div>' +
+          '</div>' +
+          '<h2 class="text-2xl sm:text-3xl font-bold text-slate-800 uppercase mb-3">Tak' + (name ? ', ' + escapeHtml(name.split(' ')[0]) : '') + '!</h2>' +
+          '<p class="text-slate-600 max-w-xl text-lg leading-relaxed">' +
+            'Vi behandler dit tilbud nu og matcher det med <span class="font-bold text-safety-orange">' + escapeHtml(model || 'din maskine') + '</span>. ' +
+            'Du hører fra os inden for <span class="font-bold text-slate-800">2 timer</span>.' +
+          '</p>' +
+          '<div class="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-3 w-full max-w-2xl">' +
+            successStep('1', 'Vi gennemgår din konfiguration', 'Vores specialister matcher grejet med din model') +
+            successStep('2', 'Du får præcise priser', 'Skræddersyet tilbud direkte i din indbakke') +
+            successStep('3', 'Klar til arbejde', 'Vi hjælper med montering og hydraulik') +
+          '</div>' +
+          '<button id="sb-restart" class="sb-btn mt-9 inline-flex items-center gap-2 px-6 py-3 rounded-lg font-semibold text-slate-700 border-2 border-slate-200 hover:bg-slate-100">' +
+            '<svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>' +
+            'Start forfra' +
+          '</button>' +
+        '</div>';
+
+      document.getElementById('sb-restart').addEventListener('click', function () {
+        state.step = 1; state.weight = null; state.workType = null; state.current = []; state.submitted = false;
+        footer.style.display = 'flex';
+        render();
+      });
+    }
+
+    function successStep(num, title, desc) {
+      return '<div class="bg-white border border-slate-200 rounded-xl p-4 text-left">' +
+        '<div class="w-8 h-8 rounded-full bg-safety-yellow text-slate-900 font-bold flex items-center justify-center mb-2">' + num + '</div>' +
+        '<div class="font-bold text-slate-800 text-sm">' + title + '</div>' +
+        '<div class="text-xs text-slate-500 mt-1">' + desc + '</div>' +
+      '</div>';
+    }
+
+    /* =========================================================
+       NAVIGATION
+       ========================================================= */
+    function canProceed() {
+      if (state.step === 1) return !!state.weight;
+      if (state.step === 2) return !!state.workType;
+      if (state.step === 3) return true; // multi-select optional
+      return true;
+    }
+
+    function updateNav() {
+      backBtn.disabled = state.step === 1;
+
+      if (state.step === state.totalSteps) {
+        // On results page: hide next button (form has its own CTA)
+        nextBtn.style.display = 'none';
+      } else {
+        nextBtn.style.display = 'inline-flex';
+        nextBtn.disabled = !canProceed();
+        nextBtn.innerHTML = (state.step === 3 ? 'Se min konfiguration' : 'Næste') +
+          '<svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>';
+      }
+    }
+
+    backBtn.addEventListener('click', function () {
+      if (state.step > 1) { state.step--; render(); }
+    });
+    nextBtn.addEventListener('click', function () {
+      if (canProceed() && state.step < state.totalSteps) { state.step++; render(); }
+    });
+
+    /* =========================================================
+       HELPERS
+       ========================================================= */
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+      });
+    }
+    function checkSvg(cls) {
+      cls = cls || 'w-4 h-4';
+      return '<svg xmlns="http://www.w3.org/2000/svg" class="' + cls + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>';
+    }
+    function infoSvg() { return '<svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>'; }
+    function lockSvg() { return '<svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>'; }
+    function starSvg() { return '<svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>'; }
+    function envelopeSvg(cls) { cls = cls || 'w-5 h-5'; return '<svg xmlns="http://www.w3.org/2000/svg" class="' + cls + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 7l-10 6L2 7"/></svg>'; }
+
+    // ---- Machine / attachment icons ----
+    function iconMini()   { return '<svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17h10v-4l4-2-2-4h-4l-2 3H6a2 2 0 00-2 2v5z"/><circle cx="7" cy="19" r="2"/><circle cx="13" cy="19" r="2"/></svg>'; }
+    function iconMedium() { return '<svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 16h12v-5l5-2-2-5h-5l-3 4H5a2 2 0 00-2 2v6z"/><circle cx="7" cy="19" r="2.2"/><circle cx="14" cy="19" r="2.2"/></svg>'; }
+    function iconLarge()  { return '<svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 15h13V9l6-2-2-4h-6l-3 4H4a2 2 0 00-2 2v6z"/><circle cx="7" cy="19" r="2.4"/><circle cx="15" cy="19" r="2.4"/></svg>'; }
+    function iconHeavy()  { return '<svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="14" width="20" height="4" rx="1"/><path d="M4 14l2-6h6l4 6"/><circle cx="6" cy="20" r="1.4"/><circle cx="10" cy="20" r="1.4"/><circle cx="14" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/></svg>'; }
+    function iconGarden() { return '<svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22V12"/><path d="M12 12C12 8 9 5 5 5c0 4 3 7 7 7z"/><path d="M12 10c0-3 3-6 7-6 0 3-3 6-7 6z"/></svg>'; }
+    function iconDemo()   { return '<svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3l7 7-3 3-7-7z"/><path d="M11 6L3 14l4 4 8-8"/><path d="M3 21h6"/></svg>'; }
+    function iconDig()    { return '<svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h18"/><path d="M7 20l3-8 8 3"/><path d="M10 12l6-6 3 3-4 5"/></svg>'; }
+    function iconCoupler() { return '<svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4v6a5 5 0 0010 0V4"/><path d="M12 15v5"/><path d="M8 20h8"/></svg>'; }
+    function iconBucket() { return '<svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7l2 10h10l2-10"/><path d="M4 7h16"/><path d="M17 17l2 3"/></svg>'; }
+    function iconHydraulic() { return '<svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v6"/><path d="M9 8h6l-1 6H10z"/><path d="M12 14v8"/><path d="M8 22h8"/></svg>'; }
+    function tierIconBasis() { return '<svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l9 4.9v10.2L12 22l-9-4.9V6.9z"/><path d="M12 22V12"/><path d="M3 7l9 5 9-5"/></svg>'; }
+    function tierIconNice() { return '<svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>'; }
+    function tierIconBadass() { return '<svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h7l-1 8 10-12h-7z"/></svg>'; }
+
+    /* =========================================================
+       INIT
+       ========================================================= */
+    render();
+  })();
+  </script>
+</body>
+</html>
