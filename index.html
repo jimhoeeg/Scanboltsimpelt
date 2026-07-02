@@ -87,6 +87,17 @@
     .sb-checkrow.sb-selected .sb-box svg { opacity: 1; }
     .sb-box svg { opacity: 0; transition: opacity 0.15s ease; }
 
+    /* Selectable product rows on the results screen */
+    .sb-pick { transition: all 0.16s ease; }
+    .sb-pick.sb-selected {
+      border-color: #f97316;
+      background-color: #fff7ed;
+      box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.18);
+    }
+    .sb-pick.sb-selected .sb-pbox { background-color: #f97316; border-color: #f97316; }
+    .sb-pbox svg { opacity: 0; transition: opacity 0.15s ease; }
+    .sb-pick.sb-selected .sb-pbox svg { opacity: 1; }
+
     /* Result card accent bars */
     .sb-result-card { transition: transform 0.2s ease, box-shadow 0.2s ease; }
     .sb-result-card:hover { transform: translateY(-4px); box-shadow: 0 20px 40px -12px rgba(15,23,42,0.25); }
@@ -197,6 +208,7 @@
       weight: null,      // 'mini' | 'mellem' | 'stor' | 'tung'
       workType: null,    // 'gartner' | 'nedrivning' | 'kloak'
       current: [],       // array of ids from step 3
+      selected: [],      // product ids chosen on the results screen
       submitted: false,
     };
 
@@ -225,82 +237,75 @@
     ];
 
     /* =========================================================
-       RECOMMENDATION MATRIX  (weight x workType)
-       Each entry: { must:[], nice:[], badass:[] }
-       Items: { name, note }
+       SCANBOLT PRODUKTKATALOG
+       Realistisk sortiment af Scanbolt-grej, grupperet efter
+       kategori. Ret blot navn/kategori/note her — eller tilføj
+       nye linjer med jeres præcise varenumre — så følger resten
+       af widgeten automatisk med.
        ========================================================= */
-    const M = {
+    const catalog = {
+      // Undervogn
+      baelter:         prod('Stærke Gummibælter', 'Undervogn', 'Skånsomme mod fliser og godt greb i blød jord'),
+      // Skovle
+      grave_std:       prod('Graveskovl (standard)', 'Skovle', 'Robust standardskovl til daglig gravning'),
+      kabelskovl:      prod('Kabelskovl 300mm', 'Skovle', 'Smal skovl til kabler og præcise render'),
+      planer:          prod('Planérskovl / Rabatskovl', 'Skovle', 'Bred skovl til afretning og planering'),
+      rende:           prod('Rendegraveskovl', 'Skovle', 'Effektiv til rør- og kloakrender'),
+      grave_hd:        prod('Forstærket Graveskovl m/ Jaws-tænder', 'Skovle', 'HD-stål der bider gennem beton og armering'),
+      tiltskovl:       prod('Hydraulisk Tiltskovl', 'Skovle', 'Afret skråninger og grøftebund uden at flytte maskinen'),
+      sorteringsskovl: prod('Sorteringsskovl (skelneskovl)', 'Skovle', 'Sigt jord og skil sten fra direkte på pladsen'),
+      nedbrydskovl:    prod('Nedbrydningsskovl HD', 'Skovle', 'Ekstra kraftig til murbrokker og beton'),
+      // Hurtigskift
+      hurtig_mek:      prod('Mekanisk Hurtigskift', 'Hurtigskift', 'Hurtigt skift af skovle uden værktøj'),
+      hurtig_hyd:      prod('Hydraulisk Hurtigskift', 'Hurtigskift', 'Skift grej uden at forlade kabinen'),
+      // Tiltrotator
+      tiltrotator:     prod('Tiltrotator med greb', 'Tiltrotator', 'Fuld 360° rotation + tilt — arbejd i alle vinkler'),
+      // Grabbe
+      sortergrab:      prod('360° Hydraulisk Sorteregrab', 'Grabbe', 'Til sten, stubbe og rødder — roterer frit'),
+      pallegrab:       prod('Sten- & Pallegrab', 'Grabbe', 'Løft og placér tunge emner præcist'),
+      rivegrab:        prod('Rivegrab', 'Grabbe', 'Perfekt til rydning af grene, rødder og affald'),
+      polypgrab:       prod('Polypgrab (5-fingret)', 'Grabbe', 'Håndtér skrot, sten og løst materiale'),
+      // Hammere
+      hammer:          prod('Hydraulisk Nedbrydningshammer', 'Hammere', 'Maksimal slagenergi til beton og klippe'),
+      hammer_hd:       prod('Heavy-Duty Nedbrydningshammer', 'Hammere', 'Til vedvarende, tung nedbrydning'),
+      // Tilbehør
+      pallegafler:     prod('Pallegafler', 'Tilbehør', 'Flyt paller og byggematerialer på pladsen'),
+      vibroplade:      prod('Pladevibrator (komprimering)', 'Tilbehør', 'Komprimér grøftebund og bagfyld effektivt'),
+      loeftekrog:      prod('Løftekrog', 'Tilbehør', 'Sikkert løft af rør og brønde'),
+      tandsaet:        prod('Slidstål & Tandsæt', 'Tilbehør', 'Forlæng skovlens levetid — hurtigt at skifte'),
+    };
+    function prod(name, cat, note) { return { name: name, cat: cat, note: note }; }
+
+    /* =========================================================
+       ANBEFALINGSMATRIX  (vægtklasse x arbejdsopgave)
+       Hver celle peger på produkt-id'er i kataloget ovenfor,
+       fordelt på de tre niveauer: must / nice / badass.
+       ========================================================= */
+    const matrix = {
       mini: {
-        gartner: {
-          must:  [ item('Stærke Gummibælter & 300mm Kabelskovl', 'Skånsom mod fliser – går ikke i stå i den bløde jord') ],
-          nice:  [ item('Hydraulisk Planerskovl', 'Sparer 30% afretningstid ved klargøring af plæner') ],
-          badass:[ item('360° Hydraulisk Sorteregrab', 'Til sten, stubbe og rødder – roterer frit i alle vinkler') ],
-        },
-        nedrivning: {
-          must:  [ item('Forstærket Graveskovl med Jaws-tænder', 'Bider sig gennem beton og armering uden at bukke') ],
-          nice:  [ item('Hydraulisk Hurtigskift', 'Skift grej uden at forlade kabinen') ],
-          badass:[ item('Kompakt Nedbrydningshammer', 'Maksimal slagenergi tilpasset minimaskinens flow') ],
-        },
-        kloak: {
-          must:  [ item('Kabelskovl 300mm & Rendegraveskovl', 'Præcis rendegravning til rør og kabler') ],
-          nice:  [ item('Hydraulisk Tiltskovl', 'Afret grøftebund uden at flytte maskinen') ],
-          badass:[ item('Tiltrotator (fuld 360° + tilt)', 'Fingerspidsfornemmelse – arbejd i alle vinkler fra kabinen') ],
-        },
+        gartner:    { must: ['baelter','kabelskovl','hurtig_mek'], nice: ['tiltskovl','planer','pallegafler'],           badass: ['tiltrotator','sortergrab'] },
+        nedrivning: { must: ['grave_hd','hurtig_mek','baelter'],   nice: ['hurtig_hyd','sorteringsskovl'],                badass: ['hammer','polypgrab'] },
+        kloak:      { must: ['kabelskovl','rende','hurtig_mek'],   nice: ['tiltskovl','loeftekrog','vibroplade'],         badass: ['tiltrotator','sortergrab'] },
       },
       mellem: {
-        gartner: {
-          must:  [ item('Slidstærke Gummibælter & Planerskovl', 'Stabilt fundament til afretning og transport') ],
-          nice:  [ item('Hydraulisk Tiltskovl', 'Model terræn og skråninger på den halve tid') ],
-          badass:[ item('360° Sorteregrab til sten & stubbe', 'Løft, sortér og placér tunge emner med præcision') ],
-        },
-        nedrivning: {
-          must:  [ item('Forstærket Graveskovl med Jaws-tænder', 'HD-stål der tåler beton, armering og murbrokker') ],
-          nice:  [ item('Hydraulisk Hurtigskift', 'Skift grej uden at forlade kabinen') ],
-          badass:[ item('Heavy-Duty Nedbrydningshammer', 'Afleverer maksimal slagenergi til beton og klippe') ],
-        },
-        kloak: {
-          must:  [ item('Rendegraveskovl + Planérskovl 1200mm', 'Effektiv rendegravning og opfyld i ét setup') ],
-          nice:  [ item('Hydraulisk Hurtigskift', 'Skift mellem grave- og planérskovl på sekunder') ],
-          badass:[ item('Tiltrotator med greb', 'Læg rør præcist og grav i vinkler uden ompositionering') ],
-        },
+        gartner:    { must: ['baelter','grave_std','planer'],      nice: ['tiltskovl','hurtig_hyd','pallegafler'],        badass: ['tiltrotator','sortergrab','rivegrab'] },
+        nedrivning: { must: ['grave_hd','hurtig_mek','tandsaet'],  nice: ['hurtig_hyd','sorteringsskovl'],                badass: ['hammer','polypgrab','sortergrab'] },
+        kloak:      { must: ['rende','grave_std','hurtig_mek'],    nice: ['hurtig_hyd','tiltskovl','vibroplade','loeftekrog'], badass: ['tiltrotator','hammer'] },
       },
       stor: {
-        gartner: {
-          must:  [ item('HD Planérskovl & Slidstærke Bælter', 'Bevæg store jordmængder og afret store arealer') ],
-          nice:  [ item('Hydraulisk Tiltskovl (bred)', 'Præcis modellering af terræn i stor skala') ],
-          badass:[ item('360° Sorteregrab (HD)', 'Håndtér sten, stubbe og genbrugsmateriale ubesværet') ],
-        },
-        nedrivning: {
-          must:  [ item('Forstærket Graveskovl med Jaws-tænder', 'Kompromisløs styrke til tung nedbrydning') ],
-          nice:  [ item('Hydraulisk Hurtigskift', 'Skift grej uden at forlade kabinen') ],
-          badass:[ item('Heavy-Duty Nedbrydningshammer', 'Afleverer maksimal slagenergi til beton og fundamenter') ],
-        },
-        kloak: {
-          must:  [ item('Graveskovl 600mm & Rendegraveskovl', 'Robust setup til dyb kloak og hovedledninger') ],
-          nice:  [ item('Hydraulisk Hurtigskift', 'Effektivt skift mellem skovle på pladsen') ],
-          badass:[ item('Tiltrotator (HD) med greb', 'Fuld frihed – grav, tilt og placér uden at flytte maskinen') ],
-        },
+        gartner:    { must: ['baelter','planer','grave_std'],      nice: ['tiltskovl','hurtig_hyd','pallegafler'],        badass: ['tiltrotator','sortergrab'] },
+        nedrivning: { must: ['grave_hd','hurtig_hyd','tandsaet'],  nice: ['sorteringsskovl','nedbrydskovl'],              badass: ['hammer_hd','polypgrab','sortergrab'] },
+        kloak:      { must: ['grave_std','rende','hurtig_hyd'],    nice: ['tiltskovl','loeftekrog','vibroplade'],         badass: ['tiltrotator','hammer'] },
       },
       tung: {
-        gartner: {
-          must:  [ item('HD Planérskovl (ekstra bred) & Bælter', 'Massiv kapacitet til store landskabsprojekter') ],
-          nice:  [ item('Hydraulisk Tiltskovl (HD)', 'Afret store flader med præcision og hastighed') ],
-          badass:[ item('360° Sorteregrab (Maxi)', 'Håndtér de tungeste sten, stubbe og materialer') ],
-        },
-        nedrivning: {
-          must:  [ item('HD Nedbrydningsskovl med Jaws-tænder', 'Bygget til brutal, vedvarende nedbrydning') ],
-          nice:  [ item('Hydraulisk Hurtigskift (HD)', 'Skift tungt grej hurtigt og sikkert') ],
-          badass:[ item('Maxi Nedbrydningshammer', 'Toppen af slagkraft – knuser fundamenter og klippe') ],
-        },
-        kloak: {
-          must:  [ item('HD Graveskovl 800mm & Rendegraveskovl', 'Til dybe udgravninger og store hovedledninger') ],
-          nice:  [ item('Hydraulisk Hurtigskift (HD)', 'Robust skift mellem tunge skovle') ],
-          badass:[ item('Tiltrotator (Maxi) med greb', 'Ultimativ kontrol i storskala-entrepriser') ],
-        },
+        gartner:    { must: ['planer','grave_std','hurtig_hyd'],   nice: ['tiltskovl','pallegrab','pallegafler'],         badass: ['sortergrab','tiltrotator'] },
+        nedrivning: { must: ['nedbrydskovl','hurtig_hyd','tandsaet'], nice: ['sorteringsskovl','grave_hd'],              badass: ['hammer_hd','polypgrab'] },
+        kloak:      { must: ['grave_std','rende','hurtig_hyd'],    nice: ['loeftekrog','vibroplade','sorteringsskovl'],   badass: ['tiltrotator','hammer_hd'] },
       },
     };
 
-    function item(name, note) { return { name: name, note: note }; }
+    // Holder på den aktuelt beregnede anbefaling (til valg + submit)
+    let currentRec = { must: [], nice: [], badass: [] };
 
     /* =========================================================
        DOM REFS
@@ -445,33 +450,62 @@
     /* =========================================================
        STEP 4 — RESULTS + LEAD FORM
        ========================================================= */
+    // Resolve a list of product ids -> product objects, skipping owned/duplicate items
+    function resolveTier(ids, dropSet) {
+      const out = [], seen = {};
+      ids.forEach(function (id) {
+        if (dropSet[id] || seen[id]) return;
+        seen[id] = true;
+        const p = catalog[id];
+        if (p) out.push({ id: id, name: p.name, cat: p.cat, note: p.note });
+      });
+      return out;
+    }
+
     function getRecommendations() {
       const w = state.weight || 'mellem';
       const t = state.workType || 'kloak';
-      // Deep clone so we can filter without mutating the matrix
-      const base = JSON.parse(JSON.stringify(M[w][t]));
+      const cell = matrix[w][t];
 
-      // Adjust "must-haves" based on what they already own (Step 3)
+      // Drop items the customer already owns (from Step 3) out of the core list
+      const drop = {};
+      if (state.current.indexOf('quickcoupler') !== -1) drop['hurtig_mek'] = true;
+      if (state.current.indexOf('bucket') !== -1) drop['grave_std'] = true;
+
+      const rec = {
+        must:   resolveTier(cell.must, drop),
+        nice:   resolveTier(cell.nice, drop),
+        badass: resolveTier(cell.badass, {}),   // upgrades are always shown
+      };
+
       const notes = [];
       if (state.current.indexOf('quickcoupler') !== -1) {
-        notes.push('Du har allerede standard hurtigskift — spørg os om opgradering til hydraulisk skift.');
+        notes.push('Du har allerede standard hurtigskift — vi anbefaler opgradering til hydraulisk skift.');
       }
       if (state.current.indexOf('bucket') !== -1) {
         notes.push('Du har en standard graveskovl — vi fokuserer på specialskovle der udvider dine muligheder.');
       }
       if (state.current.indexOf('hydraulics') === -1) {
-        notes.push('Uden hydraulik på armen kræver flere Blærerøvs-tilføjelser en ekstra hydraulikudtag — det klarer vi.');
+        notes.push('Uden hydraulik ført ud på armen kræver flere hydrauliske tilføjelser et ekstra hydraulikudtag — det klarer vi for dig.');
       } else {
         notes.push('Du har hydraulik ført ud på armen — du er klar til alt vores hydrauliske grej.');
       }
-      return { rec: base, notes: notes, weightLabel: labelFor(weightOptions, w), workLabel: labelFor(workOptions, t) };
+      return { rec: rec, notes: notes, weightLabel: labelFor(weightOptions, w), workLabel: labelFor(workOptions, t) };
     }
+
+    // Total number of recommended products across all three tiers
+    function recCount(rec) { return rec.must.length + rec.nice.length + rec.badass.length; }
 
     function labelFor(arr, id) { const o = arr.find(function (x) { return x.id === id; }); return o ? o.title : ''; }
 
     function renderResults() {
       const data = getRecommendations();
       const rec = data.rec;
+      currentRec = rec;
+
+      // Pre-select all Must-Haves; the customer opts in to the rest
+      state.selected = rec.must.map(function (p) { return p.id; });
+      const total = recCount(rec);
 
       let html = '<div class="sb-step">';
 
@@ -488,12 +522,24 @@
             '</div>' +
           '</div>' +
           '<div class="shrink-0 bg-safety-yellow text-slate-900 rounded-lg px-4 py-3 text-center">' +
-            '<div class="text-2xl font-bold leading-none">3</div>' +
-            '<div class="text-[10px] uppercase tracking-widest font-bold mt-1">Niveauer</div>' +
+            '<div class="text-2xl font-bold leading-none">' + total + '</div>' +
+            '<div class="text-[10px] uppercase tracking-widest font-bold mt-1">Produkter</div>' +
           '</div>' +
         '</div>';
 
-      // Three columns
+      // Selection instruction bar
+      html += '' +
+        '<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">' +
+          '<p class="text-sm text-slate-600 flex items-center gap-2">' + infoSvg() +
+            'Vælg det grej du vil have med i dit tilbud — vi har forvalgt dine Must-Haves.' +
+          '</p>' +
+          '<span class="inline-flex items-center gap-2 self-start sm:self-auto bg-slate-800 text-white text-xs font-bold uppercase tracking-wide px-3 py-1.5 rounded-full">' +
+            '<span class="w-2 h-2 rounded-full bg-safety-orange"></span>' +
+            '<span id="sb-selcount">' + state.selected.length + '</span> af ' + total + ' valgt' +
+          '</span>' +
+        '</div>';
+
+      // Three columns of selectable products
       html += '<div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-3">';
       html += resultColumn(
         'Basis', 'Must-Haves', 'Det du SKAL have for at komme i gang',
@@ -546,6 +592,22 @@
 
       const form = document.getElementById('sb-lead-form');
       form.addEventListener('submit', handleSubmit);
+
+      // Wire up product selection toggles
+      body.querySelectorAll('[data-pid]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          const id = btn.getAttribute('data-pid');
+          const idx = state.selected.indexOf(id);
+          if (idx === -1) { state.selected.push(id); btn.classList.add('sb-selected'); }
+          else { state.selected.splice(idx, 1); btn.classList.remove('sb-selected'); }
+          updateSelCount();
+        });
+      });
+    }
+
+    function updateSelCount() {
+      const el = document.getElementById('sb-selcount');
+      if (el) el.textContent = state.selected.length;
     }
 
     function chip(text) {
@@ -570,14 +632,27 @@
            '</div>';
       h += '<h3 class="text-xl font-bold text-slate-800 uppercase">' + tag + '</h3>';
       h += '<p class="text-xs text-slate-400 mb-4">' + desc + '</p>';
-      h += '<ul class="space-y-3 flex-1">';
+      h += '<div class="space-y-2.5 flex-1">';
+      if (!items.length) {
+        h += '<p class="text-sm text-slate-400 italic">Intet at tilføje her ud fra dine valg.</p>';
+      }
+      const tagCls = 'bg-slate-100 text-slate-500 border-slate-200';
       items.forEach(function (it) {
-        h += '<li class="border-l-2 ' + (color === 'orange' ? 'border-safety-orange' : (color === 'yellow' ? 'border-safety-yellow' : 'border-slate-300')) + ' pl-3">' +
-               '<div class="font-semibold text-slate-800 text-sm leading-snug">' + it.name + '</div>' +
-               '<div class="text-xs text-slate-500 mt-0.5">' + it.note + '</div>' +
-             '</li>';
+        const isSel = state.selected.indexOf(it.id) !== -1;
+        h += '' +
+          '<button type="button" data-pid="' + it.id + '" class="sb-pick ' + (isSel ? 'sb-selected ' : '') +
+            'w-full text-left rounded-lg border-2 border-slate-200 bg-white p-3 flex gap-3 items-start hover:border-safety-orange focus:outline-none">' +
+            '<span class="sb-pbox shrink-0 w-5 h-5 mt-0.5 rounded border-2 border-slate-300 flex items-center justify-center">' + checkSvg('text-white w-3.5 h-3.5') + '</span>' +
+            '<span class="flex-1 min-w-0">' +
+              '<span class="flex items-start justify-between gap-2">' +
+                '<span class="font-semibold text-slate-800 text-sm leading-snug">' + it.name + '</span>' +
+                '<span class="shrink-0 text-[9px] font-bold uppercase tracking-wide border px-1.5 py-0.5 rounded ' + tagCls + '">' + it.cat + '</span>' +
+              '</span>' +
+              '<span class="block text-xs text-slate-500 mt-0.5">' + it.note + '</span>' +
+            '</span>' +
+          '</button>';
       });
-      h += '</ul>';
+      h += '</div>';
       if (color === 'orange') {
         h += '<div class="mt-4 text-[10px] uppercase tracking-widest font-bold text-safety-orange flex items-center gap-1.5">' + starSvg() + 'Mest populære opgradering</div>';
       }
@@ -615,6 +690,11 @@
 
       if (!ok) return;
 
+      // The exact products the customer chose to include in the quote
+      const chosen = state.selected.map(function (id) {
+        return { id: id, name: catalog[id] ? catalog[id].name : id, cat: catalog[id] ? catalog[id].cat : '' };
+      });
+
       // Capture the lead payload (in a real deployment: POST to CRM/endpoint)
       const lead = {
         weight: state.weight,
@@ -624,14 +704,15 @@
         name: name.value.trim(),
         email: email.value.trim(),
         phone: phone.value.trim(),
-        recommendations: getRecommendations().rec,
+        recommendations: currentRec,
+        selectedProducts: chosen,
         timestamp: new Date().toISOString(),
       };
       // eslint-disable-next-line no-console
       console.log('[Scanbolt Lead]', lead);
 
       state.submitted = true;
-      showSuccess(model.value.trim(), name.value.trim());
+      showSuccess(model.value.trim(), name.value.trim(), chosen);
     }
 
     function validate(input, condition, msg) {
@@ -648,11 +729,24 @@
       return true;
     }
 
-    function showSuccess(model, name) {
+    function showSuccess(model, name, chosen) {
       footer.style.display = 'none';
       progress.style.width = '100%';
       stepLabel.textContent = 'Færdig';
       stepName.textContent = 'Tilbud på vej';
+
+      chosen = chosen || [];
+      let chosenHtml = '';
+      if (chosen.length) {
+        chosenHtml = '<div class="mt-7 w-full max-w-2xl bg-white border border-slate-200 rounded-xl p-4 text-left">' +
+          '<div class="text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">Grej i dit tilbud (' + chosen.length + ')</div>' +
+          '<div class="flex flex-wrap gap-2">';
+        chosen.forEach(function (p) {
+          chosenHtml += '<span class="inline-flex items-center gap-1.5 bg-orange-50 border border-orange-200 text-slate-700 text-xs font-semibold px-2.5 py-1 rounded-full">' +
+            '<span class="w-1.5 h-1.5 rounded-full bg-safety-orange"></span>' + escapeHtml(p.name) + '</span>';
+        });
+        chosenHtml += '</div></div>';
+      }
 
       body.innerHTML = '' +
         '<div class="sb-success flex flex-col items-center justify-center text-center py-10 sm:py-16 px-4">' +
@@ -665,9 +759,11 @@
           '</div>' +
           '<h2 class="text-2xl sm:text-3xl font-bold text-slate-800 uppercase mb-3">Tak' + (name ? ', ' + escapeHtml(name.split(' ')[0]) : '') + '!</h2>' +
           '<p class="text-slate-600 max-w-xl text-lg leading-relaxed">' +
-            'Vi behandler dit tilbud nu og matcher det med <span class="font-bold text-safety-orange">' + escapeHtml(model || 'din maskine') + '</span>. ' +
+            'Vi behandler dit tilbud nu og matcher ' + (chosen.length ? '<span class="font-bold text-slate-800">' + chosen.length + ' udvalgte produkter</span> ' : 'det ') +
+            'med <span class="font-bold text-safety-orange">' + escapeHtml(model || 'din maskine') + '</span>. ' +
             'Du hører fra os inden for <span class="font-bold text-slate-800">2 timer</span>.' +
           '</p>' +
+          chosenHtml +
           '<div class="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-3 w-full max-w-2xl">' +
             successStep('1', 'Vi gennemgår din konfiguration', 'Vores specialister matcher grejet med din model') +
             successStep('2', 'Du får præcise priser', 'Skræddersyet tilbud direkte i din indbakke') +
@@ -680,7 +776,7 @@
         '</div>';
 
       document.getElementById('sb-restart').addEventListener('click', function () {
-        state.step = 1; state.weight = null; state.workType = null; state.current = []; state.submitted = false;
+        state.step = 1; state.weight = null; state.workType = null; state.current = []; state.selected = []; state.submitted = false;
         footer.style.display = 'flex';
         render();
       });
